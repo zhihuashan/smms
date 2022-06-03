@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+	http://www.springframework.org/schema/beans/spring-beans.xsd
+	http://www.springframework.org/schema/context
+	http://www.springframework.org/schema/context/spring-context.xsd
+	http://www.springframework.org/schema/aop
+	http://www.springframework.org/schema/aop/spring-aop.xsd
+	http://www.springframework.org/schema/tx
+	http://www.springframework.org/schema/tx/spring-tx.xsd">
+    <!--开启注解的扫描，希望处理service和dao，controller不需要Spring框架去处理-->
+    <!--配置数据源 -->
+    <context:component-scan base-package="com.it" >
+        <!--配置哪些注解不扫描,不扫描@Controller注解-->
+        <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller" />
+    </context:component-scan>
+<!--    配置AccountDao接口所在包-->
+    <bean id="mapperScanner" class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+        <property name="basePackage" value="com.it.dao"/>
+    </bean>
+<!--    引入jdbc.properties中的配置文件-->
+    <context:property-placeholder location="classpath:jdbc.properties"></context:property-placeholder>
+<!--定义数据源dataSource bean-->
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <!--        数据库连接地址-->
+        <property name="url" value="${jdbc.url}"/>
+        <!--        数据库的用户名-->
+        <property name="username" value="${jdbc.username}"/>
+        <!--        数据库的密码-->
+        <property name="password" value="${jdbc.password}"/>
+        <!--        数据库驱动-->
+        <property name="driverClassName" value="${jdbc.driver}"/>
+    </bean>
+    <!--    定义jdbcTemplate bean-->
+    <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <!--        将数据源的bean注入到jdbcTemplate中-->
+        <property name="dataSource" ref="dataSource"></property>
+    </bean>
+<!--    配置spring 框架声明式事务管理-->
+<!--    配置事务管理器-->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+<!--    配置事务通知-->
+    <tx:advice id="txAdvice" transaction-manager="transactionManager">
+        <tx:attributes>
+<!--            find方法只读-->
+            <tx:method name="find*" read-only="true"/>
+<!--            其他方法默认提交事务-->
+            <tx:method name="*" isolation="DEFAULT"/>
+        </tx:attributes>
+    </tx:advice>
+    <!--    配置切点和切面  定义哪些 Bean 应该被通知-->
+    <aop:config>
+<!--        AccountServiceImpl下所有的方法都需要进行事务处理-->
+        <aop:advisor advice-ref="txAdvice" pointcut="execution(* com.it.service.impl.AccountServiceImpl.*(..))"/>
+    </aop:config>
+    <!-- 2. 将SqlSessionFactory交给Spring托管   -->
+    <bean id="sqlSessionFactory" class="org.mybatis.spring.SqlSessionFactoryBean" scope="singleton">
+        <property name="dataSource" ref="dataSource"/>          <!-- 加载数据环境   -->
+        <!--  绑定mybatis配置文件     -->
+        <property name="configLocation" value="classpath:mybatis.xml"/>
+        <!--   几乎所有的东西都能在这里面配，完全不需要mybatis的核心配置
+               根据个人喜好，个人感觉分开一点维护比较容易
+        -->
+    </bean>
+
+    <!--  3. 将SqlSession对象的加载交给Spring托管  -->
+    <bean id="sqlSession" class="org.mybatis.spring.SqlSessionTemplate">
+        <!-- 按照mybatis的习俗，通过工厂获得SqlSession会话对象       -->
+        <constructor-arg name="sqlSessionFactory" ref="sqlSessionFactory"/>
+    </bean>
+</beans>
